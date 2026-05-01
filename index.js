@@ -62,3 +62,24 @@ function sendToHubSpot(data) {
 server.listen(PORT, () => {
     console.log(`Listening on ${PORT}`);
 });
+
+
+
+/*
+git add .
+git commit -m "froggy"
+git push
+
+
+
+git log --oneline
+
+git revert a1b2c3d
+
+safe view: git checkout a1b2c3d
+git reset --hard a1b2c3d
+
+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
+
+https://github.com/tacujanairo/shopify-webhook-pipeline.git
+*/
