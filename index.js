@@ -132,9 +132,15 @@ https://github.com/tacujanairo/shopify-webhook-pipeline.git
 
 
 
+git add .
+git commit -m "froggy"
+git push
+
+git clone git@github.com:tacujanairo/shopify-webhook-pipeline.git webhook-app
+
+git pull
 
 
 
-
-
+pm2
 */
