@@ -1,0 +1,12 @@
+sqlite3 shopify.db
+
+.tables
+
+SELECT * FROM webhook_events;
+SELECT * FROM customers;
+SELECT * FROM orders;
+SELECT * FROM order_items;
+
+
+
+SELECT id, event_id, event_type, created_at FROM webhook_events;

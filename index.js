@@ -12,11 +12,14 @@ const server = http.createServer((req, res) => {
         req.on("data", (chunk) => {
             body += chunk.toString();
         });
+
+        /*
         req.on("end", () => {
             console.log("🔥 WEBHOOK RECEIVED");
 
             try {
                 const data = JSON.parse(body);
+
 
                 // 1. store raw webhook FIRST
                 saveWebhookEvent(req.headers, body);
@@ -47,7 +50,8 @@ const server = http.createServer((req, res) => {
             res.writeHead(200);
             res.end("OK");
         });
-/*
+        */
+
         req.on("end", () => {
           console.log("🔥 WEBHOOK RECEIVED");
 
@@ -71,7 +75,7 @@ const server = http.createServer((req, res) => {
           res.writeHead(200);
           res.end("OK");
         });
-*/
+
     } else {
         res.end("Server running");
     }
