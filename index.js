@@ -1,4 +1,6 @@
 
+const sqlite3 = require("sqlite3").verbose();
+const db = new sqlite3.Database("./sql/shopify.db");
 const http = require("http");
 const PORT = 3000;
 
@@ -10,7 +12,43 @@ const server = http.createServer((req, res) => {
         req.on("data", (chunk) => {
             body += chunk.toString();
         });
+        req.on("end", () => {
+            console.log("🔥 WEBHOOK RECEIVED");
 
+            try {
+                const data = JSON.parse(body);
+
+                // 1. store raw webhook FIRST
+                saveWebhookEvent(req.headers, body);
+
+                // 2. normalize
+                const normalized = normalizeShopifyOrder(data);
+
+                console.log("✅ Normalized Data:");
+                console.log(normalized);
+
+                const normalized = normalizeShopifyOrder(data);
+
+                // 1. save raw event first (optional but recommended)
+                saveWebhookEvent(req.headers, body);
+
+                // 2. store customer
+                upsertCustomer(normalized.customer);
+
+                // 3. store order AFTER small delay (temporary simple flow)
+                setTimeout(() => {
+                    insertOrder(normalized.customer.email, normalized.order, normalized.items);
+                }, 50);
+
+
+            } catch (err) {
+                console.error("❌ JSON parse error:", err.message);
+            }
+
+            res.writeHead(200);
+            res.end("OK");
+        });
+/*
         req.on("end", () => {
           console.log("🔥 WEBHOOK RECEIVED");
 
@@ -34,6 +72,7 @@ const server = http.createServer((req, res) => {
           res.writeHead(200);
           res.end("OK");
         });
+*/
     } else {
         res.end("Server running");
     }
@@ -104,6 +143,70 @@ function sendToHubSpot(data) {
     console.log("📇 Sending to HubSpot...");
     console.log(data);
 }
+
+function saveWebhookEvent(headers, body) {
+    const stmt = db.prepare(`
+        INSERT OR IGNORE INTO webhook_events
+        (event_id, event_type, payload, processed_at)
+        VALUES (?, ?, ?, NULL)
+    `);
+
+    stmt.run(
+        headers["x-shopify-webhook-id"] || null,
+        headers["x-shopify-topic"] || "unknown",
+        body
+    );
+
+    stmt.finalize();
+}
+
+function upsertCustomer(customer) {
+    const stmt = db.prepare(`
+        INSERT OR IGNORE INTO customers
+        (shopify_customer_id, email, first_name, last_name)
+        VALUES (?, ?, ?, ?)
+    `);
+
+    stmt.run(
+        customer.shopify_customer_id,
+        customer.email,
+        customer.first_name,
+        customer.last_name
+    );
+
+    stmt.finalize();
+}
+
+function insertOrder(customerEmail, order, items) {
+    db.get(
+        `SELECT id FROM customers WHERE email = ?`,
+        [customerEmail],
+        (err, customer) => {
+            if (err || !customer) return;
+
+            db.run(
+                `INSERT OR IGNORE INTO orders
+                (shopify_order_id, customer_id, created_at, total_price, currency,
+                 shipping_name, shipping_city, shipping_country,
+                 financial_status, fulfillment_status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    order.shopify_order_id,
+                    customer.id,
+                    order.created_at,
+                    order.total_price,
+                    order.currency,
+                    order.shipping_name,
+                    order.shipping_city,
+                    order.shipping_country,
+                    order.financial_status,
+                    order.fulfillment_status
+                ]
+            );
+        }
+    );
+}
+
 
 server.listen(PORT, () => {
     console.log(`Listening on ${PORT}`);
