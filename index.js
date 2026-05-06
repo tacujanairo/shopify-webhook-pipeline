@@ -112,9 +112,25 @@ server.listen(PORT, () => {
 
 
 /*
+
 git add .
 git commit -m "froggy"
 git push
+
+
+
+git clone git@github.com:tacujanairo/shopify-webhook-pipeline.git webhook-app
+
+
+git pull
+
+
+
+
+
+
+
+
 
 
 
@@ -129,18 +145,10 @@ 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
 
 https://github.com/tacujanairo/shopify-webhook-pipeline.git
 
+use ssh not http
 
-
-
-git add .
-git commit -m "froggy"
-git push
-
-git clone git@github.com:tacujanairo/shopify-webhook-pipeline.git webhook-app
-
-git pull
-
-
+git remote set-url origin git@github.com:tacujanairo/shopify-webhook-pipeline.git
+git remote -v
 
 pm2
 */
