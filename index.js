@@ -1,12 +1,10 @@
-const Database = require("better-sqlite3");
+
+const sqlite3 = require("sqlite3").verbose();
+const db = new sqlite3.Database("./sql/shopify.db");
 const http = require("http");
-
-const db = new Database("./sql/shopify.db");
-
 const PORT = 3000;
 
 const server = http.createServer((req, res) => {
-
     if (req.method === "POST" && req.url === "/webhook") {
 
         let body = "";
@@ -15,52 +13,140 @@ const server = http.createServer((req, res) => {
             body += chunk.toString();
         });
 
+
         req.on("end", () => {
+            console.log("🔥 WEBHOOK RECEIVED");
 
             try {
-
-                console.log("🔥 WEBHOOK RECEIVED");
-
                 const data = JSON.parse(body);
 
-                // normalize
-                const normalized = normalizeShopifyOrder(data);
 
-                // 1. save webhook
+                // 1. store raw webhook FIRST
                 saveWebhookEvent(req.headers, body);
 
-                // 2. customer FIRST
+                // 2. normalize
+                const normalized = normalizeShopifyOrder(data);
+
+                console.log("✅ Normalized Data:");
+                console.log(normalized);
+                // 2. store customer
                 upsertCustomer(normalized.customer);
 
-                // 3. THEN order
-                insertOrder(
-                    normalized.customer.shopify_customer_id,
-                    normalized.order
-                );
+                // 3. store order AFTER small delay (temporary simple flow)
+                setTimeout(() => {
+                    insertOrder(normalized.customer.email, normalized.order, normalized.items);
+                }, 50);
 
-                console.log("✅ DONE");
 
             } catch (err) {
-                console.error("❌ ERROR:", err.message);
+                console.error("❌ JSON parse error:", err.message);
             }
 
             res.writeHead(200);
             res.end("OK");
         });
 
+/*
+        req.on("end", () => {
+          console.log("🔥 WEBHOOK RECEIVED");
+
+          try {
+              const data = JSON.parse(body);
+
+              // 🧠 Normalize
+              const normalized = normalizeShopifyOrder(data);
+
+              console.log("✅ Normalized Data:");
+              console.log(normalized);
+
+              // 🧠 Send to services
+              //sendToAirtable(normalized);
+              //sendToHubSpot(normalized);
+
+          } catch (err) {
+              console.error("❌ JSON parse error:", err.message);
+          }
+
+          res.writeHead(200);
+          res.end("OK");
+        });
+*/
     } else {
         res.end("Server running");
     }
 });
 
+function normalizeShopifyOrder(data) {
+    return {
+        // 🔹 customer table
+        customer: {
+            shopify_customer_id: data.customer?.id || null, // optional if you add later
+            email: data.customer?.email || data.email || "no-email@example.com",
+            first_name: data.customer?.first_name || null,
+            last_name: data.customer?.last_name || null
+        },
 
+        // 🔹 orders table
+        order: {
+            shopify_order_id: data.id || null, // useful for idempotency later
+            created_at: data.created_at || new Date().toISOString(),
+            total_price: parseFloat(data.total_price) || 0,
+            currency: data.currency || "PHP",
+
+            shipping_name: data.shipping_address?.name || null,
+            shipping_city: data.shipping_address?.city || null,
+            shipping_country: data.shipping_address?.country || null,
+
+            financial_status: mapFinancialStatus(data.financial_status),
+            fulfillment_status: mapFulfillmentStatus(data.fulfillment_status)
+        },
+
+        // 🔹 order_items table
+        items: (data.line_items || []).map(item => ({
+            product_id: item.product_id || 0,
+            title: item.title || "NO_TITLE",
+            quantity: item.quantity || 0,
+            price: parseFloat(item.price) || 0
+        }))
+    };
+}
+
+function mapFinancialStatus(status) {
+    switch (status) {
+        case "pending": return 0;
+        case "authorized": return 1;
+        case "paid": return 2;
+        case "refunded": return 3;
+        default: return 0;
+    }
+}
+
+function mapFulfillmentStatus(status) {
+    switch (status) {
+        case null: return 0;
+        case "partial": return 1;
+        case "fulfilled": return 2;
+        case "shipped": return 3;
+        case "delivered": return 4;
+        case "returned": return 5;
+        default: return 0;
+    }
+}
+function sendToAirtable(data) {
+    console.log("📦 Sending to Airtable...");
+    console.log(data);
+}
+
+function sendToHubSpot(data) {
+    console.log("📇 Sending to HubSpot...");
+    console.log(data);
+}
 
 function saveWebhookEvent(headers, body) {
-
     const stmt = db.prepare(`
         INSERT OR IGNORE INTO webhook_events
         (event_id, event_type, payload, processed_at)
-        VALUES (?, ?, ?, NULL)
+        VALUES (?, ?, ?, NULL)              // <- Lagyan mo ng Date ito!!!!
     `);
 
     stmt.run(
@@ -68,22 +154,15 @@ function saveWebhookEvent(headers, body) {
         headers["x-shopify-topic"] || "unknown",
         body
     );
+
+    stmt.finalize();
 }
 
-
-
 function upsertCustomer(customer) {
-
     const stmt = db.prepare(`
-        INSERT INTO customers
+        INSERT OR IGNORE INTO customers
         (shopify_customer_id, email, first_name, last_name)
         VALUES (?, ?, ?, ?)
-
-        ON CONFLICT(shopify_customer_id)
-        DO UPDATE SET
-            email = excluded.email,
-            first_name = excluded.first_name,
-            last_name = excluded.last_name
     `);
 
     stmt.run(
@@ -92,59 +171,45 @@ function upsertCustomer(customer) {
         customer.first_name,
         customer.last_name
     );
+
+    stmt.finalize();
 }
 
+function insertOrder(customerEmail, order, items) {
+    db.get(
+        `SELECT id FROM customers WHERE email = ?`,
+        [customerEmail],
+        (err, customer) => {
+            if (err || !customer) return;
 
-
-function insertOrder(shopifyCustomerId, order) {
-
-    // customer already guaranteed inserted
-    const customer = db.prepare(`
-        SELECT id
-        FROM customers
-        WHERE shopify_customer_id = ?
-    `).get(shopifyCustomerId);
-
-    if (!customer) {
-        throw new Error("Customer not found");
-    }
-
-    const stmt = db.prepare(`
-        INSERT OR IGNORE INTO orders
-        (
-            shopify_order_id,
-            customer_id,
-            created_at,
-            total_price,
-            currency,
-            shipping_name,
-            shipping_city,
-            shipping_country,
-            financial_status,
-            fulfillment_status
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
-        order.shopify_order_id,
-        customer.id,
-        order.created_at,
-        order.total_price,
-        order.currency,
-        order.shipping_name,
-        order.shipping_city,
-        order.shipping_country,
-        order.financial_status,
-        order.fulfillment_status
+            db.run(
+                `INSERT OR IGNORE INTO orders
+                (shopify_order_id, customer_id, created_at, total_price, currency,
+                 shipping_name, shipping_city, shipping_country,
+                 financial_status, fulfillment_status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    order.shopify_order_id,
+                    customer.id,
+                    order.created_at,
+                    order.total_price,
+                    order.currency,
+                    order.shipping_name,
+                    order.shipping_city,
+                    order.shipping_country,
+                    order.financial_status,
+                    order.fulfillment_status
+                ]
+            );
+        }
     );
 }
-
 
 
 server.listen(PORT, () => {
     console.log(`Listening on ${PORT}`);
 });
+
 
 
 /*
