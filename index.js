@@ -27,7 +27,6 @@ const server = http.createServer((req, res) => {
                 console.log("✅ Normalized Data:");
                 console.log(normalized);
 
-                const normalized = normalizeShopifyOrder(data);
 
                 // 1. save raw event first (optional but recommended)
                 saveWebhookEvent(req.headers, body);
@@ -217,7 +216,7 @@ server.listen(PORT, () => {
 /*
 
 git add .
-git commit -m "froggy"
+git commit -m "shopify"
 git push
 
 
