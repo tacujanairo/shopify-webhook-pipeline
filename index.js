@@ -38,9 +38,10 @@ const server = http.createServer(async (req, res) => {
             await upsertCustomer(normalized.customer);
 
             // Now we can insert the order because we KNOW the customer exists
-            await insertOrder(normalized.customer.email, normalized.order);
+            const dbOrderId = await insertOrder(normalized.customer.email, normalized.order);
+            await insertOrderItems(dbOrderId, normalized.items);
 
-            console.log("✅ Everything saved in order.");
+            console.log(`✅ Order ${normalized.order.shopify_order_id} and items saved.`);
 
         } catch (err) {
             console.error("❌ Error processing webhook:", err.message);
@@ -71,32 +72,41 @@ async function upsertCustomer(customer) {
 }
 
 async function insertOrder(email, order) {
-    // Look up the customer ID first
     const customer = await db.get(`SELECT id FROM customers WHERE email = ?`, [email]);
+    if (!customer) throw new Error("Customer not found");
 
-    if (!customer) {
-        console.error("Could not find customer for order!");
-        return;
-    }
-
-    return db.run(
+    // We use 'db.run' but we need the 'lastID' to link line items
+    const result = await db.run(
         `INSERT OR IGNORE INTO orders
         (shopify_order_id, customer_id, created_at, total_price, currency,
          shipping_name, shipping_city, shipping_country, financial_status, fulfillment_status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-            order.shopify_order_id,
-            customer.id,
-            order.created_at,
-            order.total_price,
-            order.currency,
-            order.shipping_name,
-            order.shipping_city,
-            order.shipping_country,
-            order.financial_status,
-            order.fulfillment_status
-        ]
+        [order.shopify_order_id, customer.id, order.created_at, order.total_price,
+         order.currency, order.shipping_name, order.shipping_city,
+         order.shipping_country, order.financial_status, order.fulfillment_status]
     );
+
+    // If the order already existed (INSERT IGNORE), result.lastID might be useless.
+    // So we fetch the actual ID of the order in the DB.
+    const row = await db.get(`SELECT id FROM orders WHERE shopify_order_id = ?`, [order.shopify_order_id]);
+    return row.id;
+}
+
+async function insertOrderItems(orderId, items) {
+    for (const item of items) {
+        // 1. Ensure the product exists first (or the Foreign Key will fail)
+        await db.run(
+            `INSERT OR IGNORE INTO products (id, title, price) VALUES (?, ?, ?)`,
+            [item.product_id, item.title, item.price]
+        );
+
+        // 2. Insert the line item linked to the order
+        await db.run(
+            `INSERT INTO order_items (order_id, product_id, title, quantity, price)
+             VALUES (?, ?, ?, ?, ?)`,
+            [orderId, item.product_id, item.title, item.quantity, item.price]
+        );
+    }
 }
 
 function normalizeShopifyOrder(data) {
