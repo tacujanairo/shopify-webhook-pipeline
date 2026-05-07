@@ -1,80 +1,103 @@
-
-const sqlite3 = require("sqlite3").verbose();
-const db = new sqlite3.Database("./sql/shopify.db");
+const sqlite3 = require("sqlite3");
+const { open } = require("sqlite");
 const http = require("http");
 const PORT = 3000;
 
-const server = http.createServer((req, res) => {
-    if (req.method === "POST" && req.url === "/webhook") {
+let db;
 
+// 1. Initialize the DB with Promise support
+(async () => {
+    db = await open({
+        filename: "./sql/shopify.db",
+        driver: sqlite3.Database
+    });
+    console.log("📂 Database connected (Modern Mode)");
+})();
+
+const server = http.createServer(async (req, res) => {
+    if (req.method === "POST" && req.url === "/webhook") {
         let body = "";
 
-        req.on("data", (chunk) => {
-            body += chunk.toString();
-        });
+        // Collect data chunks
+        for await (const chunk of req) {
+            body += chunk;
+        }
 
-
-        req.on("end", () => {
+        try {
             console.log("🔥 WEBHOOK RECEIVED");
+            const data = JSON.parse(body);
 
-            try {
-                const data = JSON.parse(body);
+            // NORMALIZE (This is just a pure function, no DB)
+            const normalized = normalizeShopifyOrder(data);
 
+            // --- THE CLEAN SEQUENCE ---
+            // Each "await" means: "Stop here until the DB confirms it's done"
 
-                // 1. store raw webhook FIRST
-                saveWebhookEvent(req.headers, body);
+            await saveWebhookEvent(req.headers, body);
 
-                // 2. normalize
-                const normalized = normalizeShopifyOrder(data);
+            await upsertCustomer(normalized.customer);
 
-                console.log("✅ Normalized Data:");
-                console.log(normalized);
-                // 2. store customer
-                upsertCustomer(normalized.customer);
+            // Now we can insert the order because we KNOW the customer exists
+            await insertOrder(normalized.customer.email, normalized.order);
 
-                // 3. store order AFTER small delay (temporary simple flow)
-                setTimeout(() => {
-                    insertOrder(normalized.customer.email, normalized.order, normalized.items);
-                }, 50);
+            console.log("✅ Everything saved in order.");
 
+        } catch (err) {
+            console.error("❌ Error processing webhook:", err.message);
+        }
 
-            } catch (err) {
-                console.error("❌ JSON parse error:", err.message);
-            }
-
-            res.writeHead(200);
-            res.end("OK");
-        });
-
-/*
-        req.on("end", () => {
-          console.log("🔥 WEBHOOK RECEIVED");
-
-          try {
-              const data = JSON.parse(body);
-
-              // 🧠 Normalize
-              const normalized = normalizeShopifyOrder(data);
-
-              console.log("✅ Normalized Data:");
-              console.log(normalized);
-
-              // 🧠 Send to services
-              //sendToAirtable(normalized);
-              //sendToHubSpot(normalized);
-
-          } catch (err) {
-              console.error("❌ JSON parse error:", err.message);
-          }
-
-          res.writeHead(200);
-          res.end("OK");
-        });
-*/
+        res.writeHead(200);
+        res.end("OK");
     } else {
         res.end("Server running");
     }
 });
+
+async function saveWebhookEvent(headers, body) {
+    return db.run(
+        `INSERT OR IGNORE INTO webhook_events
+        (event_id, event_type, payload, processed_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)`, // Use SQL's clock, not JS
+        [headers["x-shopify-webhook-id"], headers["x-shopify-topic"], body]
+    );
+}
+
+async function upsertCustomer(customer) {
+    return db.run(
+        `INSERT OR IGNORE INTO customers (shopify_customer_id, email, first_name, last_name)
+         VALUES (?, ?, ?, ?)`,
+        [customer.shopify_customer_id, customer.email, customer.first_name, customer.last_name]
+    );
+}
+
+async function insertOrder(email, order) {
+    // Look up the customer ID first
+    const customer = await db.get(`SELECT id FROM customers WHERE email = ?`, [email]);
+
+    if (!customer) {
+        console.error("Could not find customer for order!");
+        return;
+    }
+
+    return db.run(
+        `INSERT OR IGNORE INTO orders
+        (shopify_order_id, customer_id, created_at, total_price, currency,
+         shipping_name, shipping_city, shipping_country, financial_status, fulfillment_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            order.shopify_order_id,
+            customer.id,
+            order.created_at,
+            order.total_price,
+            order.currency,
+            order.shipping_name,
+            order.shipping_city,
+            order.shipping_country,
+            order.financial_status,
+            order.fulfillment_status
+        ]
+    );
+}
 
 function normalizeShopifyOrder(data) {
     return {
@@ -141,70 +164,6 @@ function sendToHubSpot(data) {
     console.log("📇 Sending to HubSpot...");
     console.log(data);
 }
-
-function saveWebhookEvent(headers, body) {
-    const stmt = db.prepare(`
-        INSERT OR IGNORE INTO webhook_events
-        (event_id, event_type, payload, processed_at)
-        VALUES (?, ?, ?, NULL)              // <- Lagyan mo ng Date ito!!!!
-    `);
-
-    stmt.run(
-        headers["x-shopify-webhook-id"] || null,
-        headers["x-shopify-topic"] || "unknown",
-        body
-    );
-
-    stmt.finalize();
-}
-
-function upsertCustomer(customer) {
-    const stmt = db.prepare(`
-        INSERT OR IGNORE INTO customers
-        (shopify_customer_id, email, first_name, last_name)
-        VALUES (?, ?, ?, ?)
-    `);
-
-    stmt.run(
-        customer.shopify_customer_id,
-        customer.email,
-        customer.first_name,
-        customer.last_name
-    );
-
-    stmt.finalize();
-}
-
-function insertOrder(customerEmail, order, items) {
-    db.get(
-        `SELECT id FROM customers WHERE email = ?`,
-        [customerEmail],
-        (err, customer) => {
-            if (err || !customer) return;
-
-            db.run(
-                `INSERT OR IGNORE INTO orders
-                (shopify_order_id, customer_id, created_at, total_price, currency,
-                 shipping_name, shipping_city, shipping_country,
-                 financial_status, fulfillment_status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    order.shopify_order_id,
-                    customer.id,
-                    order.created_at,
-                    order.total_price,
-                    order.currency,
-                    order.shipping_name,
-                    order.shipping_city,
-                    order.shipping_country,
-                    order.financial_status,
-                    order.fulfillment_status
-                ]
-            );
-        }
-    );
-}
-
 
 server.listen(PORT, () => {
     console.log(`Listening on ${PORT}`);
