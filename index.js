@@ -11,6 +11,7 @@ let db;
         filename: "./sql/shopify.db",
         driver: sqlite3.Database
     });
+    await db.exec("PRAGMA foreign_keys = ON");
     console.log("📂 Database connected (Modern Mode)");
 })();
 
@@ -94,18 +95,36 @@ async function insertOrder(email, order) {
 
 async function insertOrderItems(orderId, items) {
     for (const item of items) {
-        // 1. Ensure the product exists first (or the Foreign Key will fail)
-        await db.run(
-            `INSERT OR IGNORE INTO products (id, title, price) VALUES (?, ?, ?)`,
-            [item.product_id, item.title, item.price]
-        );
 
-        // 2. Insert the line item linked to the order
-        await db.run(
-            `INSERT INTO order_items (order_id, product_id, title, quantity, price)
-             VALUES (?, ?, ?, ?, ?)`,
-            [orderId, item.product_id, item.title, item.quantity, item.price]
-        );
+        // 1. upsert product
+        await db.run(`
+            INSERT OR IGNORE INTO products
+            (shopify_product_id, title, price)
+            VALUES (?, ?, ?)
+        `, [
+            item.shopify_product_id,
+            item.title,
+            item.price
+        ]);
+
+        // 2. fetch LOCAL product id
+        const product = await db.get(`
+            SELECT id FROM products
+            WHERE shopify_product_id = ?
+        `, [item.shopify_product_id]);
+
+        // 3. insert line item
+        await db.run(`
+            INSERT INTO order_items
+            (order_id, product_id, title, quantity, price)
+            VALUES (?, ?, ?, ?, ?)
+        `, [
+            orderId,
+            product.id,
+            item.title,
+            item.quantity,
+            item.price
+        ]);
     }
 }
 
@@ -136,7 +155,7 @@ function normalizeShopifyOrder(data) {
 
         // 🔹 order_items table
         items: (data.line_items || []).map(item => ({
-            product_id: item.product_id || 0,
+            shopify_product_id: item.product_id,
             title: item.title || "NO_TITLE",
             quantity: item.quantity || 0,
             price: parseFloat(item.price) || 0
