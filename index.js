@@ -53,11 +53,11 @@ const server = http.createServer(async (req, res) => {
     }
 });
 
-async function saveWebhookEvent(headers, body) {
+async function saveWebhookEvent(headers, body) { // Use SQL's clock, not JS
     return db.run(
         `INSERT OR IGNORE INTO webhook_events
         (event_id, event_type, payload, processed_at)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)`, // Use SQL's clock, not JS
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
         [headers["x-shopify-webhook-id"], headers["x-shopify-topic"], body]
     );
 }

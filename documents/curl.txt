@@ -1,5 +1,47 @@
 curl -i -X POST http://api.airotacujan.online/webhook \
 -H "Content-Type: application/json" \
+-H "X-Shopify-Webhook-Id: 999777666555" \
+-H "X-Shopify-Topic: orders/create" \
+-d '{
+  "id": 550123444,
+  "email": "marco.santos@example.com",
+  "created_at": "2026-05-07T09:15:42+08:00",
+  "total_price": "1249.00",
+  "currency": "PHP",
+  "financial_status": "paid",
+  "fulfillment_status": "partial",
+
+  "customer": {
+    "id": 991245,
+    "email": "marco.santos@example.com",
+    "first_name": "Marco",
+    "last_name": "Santos"
+  },
+
+  "line_items": [
+    {
+      "product_id": 321,
+      "title": "Wireless Keyboard",
+      "quantity": 1,
+      "price": "899.00"
+    },
+    {
+      "product_id": 654,
+      "title": "Mouse Pad XL",
+      "quantity": 1,
+      "price": "350.00"
+    }
+  ],
+
+  "shipping_address": {
+    "name": "Marco Santos",
+    "city": "Cebu City",
+    "country": "Philippines"
+  }
+}'
+////////////////////////////////////////////
+curl -i -X POST http://api.airotacujan.online/webhook \
+-H "Content-Type: application/json" \
 -H "X-Shopify-Webhook-Id: 999999999999" \
 -H "X-Shopify-Topic: orders/create" \
 -d '{
