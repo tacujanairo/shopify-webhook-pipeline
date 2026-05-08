@@ -5,7 +5,7 @@ const PORT = 3000;
 
 let db;
 
-// 1. Initialize the DB with Promise support
+
 (async () => {
     db = await open({
         filename: "./sql/shopify.db",
@@ -19,7 +19,6 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && req.url === "/webhook") {
         let body = "";
 
-        // Collect data chunks
         for await (const chunk of req) {
             body += chunk;
         }
@@ -28,17 +27,14 @@ const server = http.createServer(async (req, res) => {
             console.log("🔥 WEBHOOK RECEIVED");
             const data = JSON.parse(body);
 
-            // NORMALIZE (This is just a pure function, no DB)
+
             const normalized = normalizeShopifyOrder(data);
 
-            // --- THE CLEAN SEQUENCE ---
-            // Each "await" means: "Stop here until the DB confirms it's done"
 
             await saveWebhookEvent(req.headers, body);
 
             await upsertCustomer(normalized.customer);
 
-            // Now we can insert the order because we KNOW the customer exists
             const dbOrderId = await insertOrder(normalized.customer.email, normalized.order);
             await insertOrderItems(dbOrderId, normalized.items);
 
@@ -55,7 +51,7 @@ const server = http.createServer(async (req, res) => {
     }
 });
 
-async function saveWebhookEvent(headers, body) { // Use SQL's clock, not JS
+async function saveWebhookEvent(headers, body) {
     return db.run(
         `INSERT OR IGNORE INTO webhook_events
         (event_id, event_type, payload, processed_at)
@@ -76,7 +72,7 @@ async function insertOrder(email, order) {
     const customer = await db.get(`SELECT id FROM customers WHERE email = ?`, [email]);
     if (!customer) throw new Error("Customer not found");
 
-    // We use 'db.run' but we need the 'lastID' to link line items
+
     const result = await db.run(
         `INSERT OR IGNORE INTO orders
         (shopify_order_id, customer_id, created_at, total_price, currency,
@@ -87,8 +83,6 @@ async function insertOrder(email, order) {
          order.shipping_country, order.financial_status, order.fulfillment_status]
     );
 
-    // If the order already existed (INSERT IGNORE), result.lastID might be useless.
-    // So we fetch the actual ID of the order in the DB.
     const row = await db.get(`SELECT id FROM orders WHERE shopify_order_id = ?`, [order.shopify_order_id]);
     return row.id;
 }
@@ -230,7 +224,7 @@ git revert a1b2c3d
 safe view: git checkout a1b2c3d
 git reset --hard a1b2c3d
 
-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
+
 
 https://github.com/tacujanairo/shopify-webhook-pipeline.git
 
