@@ -215,7 +215,7 @@ git pull
 
 
 
-
+git rm --cached documents/*.odt
 
 git log --oneline
 
