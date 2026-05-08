@@ -3,4 +3,4 @@ node_modules/
 sql/*.db
 *.db
 *.log
-*.odt
+documents/*.odt
