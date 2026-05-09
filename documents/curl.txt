@@ -1,3 +1,48 @@
+////////////////////////////////////////////////////
+curl -i -X POST http://api.airotacujan.online/webhook \
+-H "Content-Type: application/json" \
+-H "X-Shopify-Webhook-Id: 88944888888" \
+-H "X-Shopify-Topic: orders/create" \
+-d '{
+  "id": 450789999,
+  "email": "ronna.roque@gmail.com",
+  "created_at": "2026-05-09T17:22:10+08:00",
+  "total_price": "10000.00",
+  "currency": "PHP",
+  "financial_status": "paid",
+  "fulfillment_status": "fulfilled",
+
+  "customer": {
+    "id": 882311,
+    "email": "ronna.roque@gmail.com",
+    "first_name": "Ronna",
+    "last_name": "Roque"
+  },
+
+  "line_items": [
+    {
+      "product_id": 4596,
+      "title": "RealMe Pone",
+      "quantity": 1,
+      "price": "5000.00"
+    },
+    {
+      "product_id": 5940,
+      "title": "Power Bank",
+      "quantity": 2,
+      "price": "2500.00"
+    }
+  ],
+
+  "shipping_address": {
+    "name": "Airo Tacujan",
+    "city": "Binan City",
+    "country": "Philippines"
+  }
+}'
+
+
+/////////////////////////////////////////////////////////////
 curl -i -X POST http://api.airotacujan.online/webhook \
 -H "Content-Type: application/json" \
 -H "X-Shopify-Webhook-Id: 999777666555" \

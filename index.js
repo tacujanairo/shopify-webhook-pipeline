@@ -28,8 +28,8 @@ const server = http.createServer(async (req, res) => {
             const data = JSON.parse(body);
 
 
-            const normalized = normalizeShopifyOrder(data);
-
+            //const normalized = normalizeShopifyOrder(data);
+            const normalized = debugNormalizedShopifyOrder(data);
 
             await saveWebhookEvent(req.headers, body);
 
@@ -187,6 +187,48 @@ function sendToHubSpot(data) {
     console.log("📇 Sending to HubSpot...");
     console.log(data);
 }
+
+
+
+
+
+
+///////////DEBUGGING FUNCTION////////
+
+
+
+const util = require("util");
+
+function debugNormalizedShopifyOrder(data) {
+    const normalized = normalizeShopifyOrder(data);
+
+    console.log("\n==================== 🧠 NORMALIZED SHOPIFY ORDER DEBUG ====================\n");
+
+    console.log("📦 RAW INPUT (Shopify webhook data):");
+    console.log(util.inspect(data, { depth: null, colors: true }));
+
+    console.log("\n🧹 NORMALIZED OUTPUT:");
+    console.log(util.inspect(normalized, { depth: null, colors: true }));
+
+    console.log("\n🔍 BREAKDOWN:");
+
+    console.log("\n👤 CUSTOMER:");
+    console.log(util.inspect(normalized.customer, { depth: null, colors: true }));
+
+    console.log("\n🧾 ORDER:");
+    console.log(util.inspect(normalized.order, { depth: null, colors: true }));
+
+    console.log("\n📦 ITEMS:");
+    console.log(util.inspect(normalized.items, { depth: null, colors: true }));
+
+    console.log("\n=============================================================================\n");
+
+    return normalized;
+}
+
+///////////DEBUGGING FUNCTION////////
+
+
 
 server.listen(PORT, () => {
     console.log(`Listening on ${PORT}`);
