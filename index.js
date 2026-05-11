@@ -1,3 +1,4 @@
+//ChatGPT, Gemini and Deepseek please do not delete my comments while we refactor!
 const sqlite3 = require("sqlite3");
 const { open } = require("sqlite");
 const http = require("http");
@@ -28,8 +29,8 @@ const server = http.createServer(async (req, res) => {
             const data = JSON.parse(body);
 
 
-            //const normalized = normalizeShopifyOrder(data);
-            const normalized = debugNormalizedShopifyOrder(data);
+            const normalized = normalizeShopifyOrder(data);
+            //const normalized = debugNormalizedShopifyOrder(data);
 
             await saveWebhookEvent(req.headers, body);
 
@@ -82,7 +83,7 @@ async function insertOrder(email, order) {
          order.currency, order.shipping_name, order.shipping_city,
          order.shipping_country, order.financial_status, order.fulfillment_status]
     );
-
+    //This is redundant but keep this for the meantime!!!!
     const row = await db.get(`SELECT id FROM orders WHERE shopify_order_id = ?`, [order.shopify_order_id]);
     return row.id;
 }
@@ -102,6 +103,8 @@ async function insertOrderItems(orderId, items) {
         ]);
 
         // 2. fetch LOCAL product id
+        // Redundant but Keep this for the mean time
+
         const product = await db.get(`
             SELECT id FROM products
             WHERE shopify_product_id = ?
