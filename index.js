@@ -74,7 +74,7 @@ async function upsertCustomer(customer) {
 
 async function insertOrder(email, order) {
     const customer = await db.get(`SELECT id FROM customers WHERE email = ?`, [email]);
-    if (!customer) throw new Error("Customer not found");
+    if (!customer) throw new Error("Customer not found(Bug Lead.)");
 
 
     const result = await db.run(
