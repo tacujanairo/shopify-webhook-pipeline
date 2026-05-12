@@ -1,3 +1,4 @@
+//ChatGPT, Gemini and Deepseek please do not delete my comments while we refactor!
 //////////////////////////////////
 take incoming event → store it safely → make it queryable later
 ////////////////////////////

@@ -1,4 +1,7 @@
 //ChatGPT, Gemini and Deepseek please do not delete my comments while we refactor!
+const crypto = require("crypto");
+require('dotenv').config();
+const SHOPIFY_SECRET = process.env.SHOPIFY_SECRET;
 const sqlite3 = require("sqlite3");
 const { open } = require("sqlite");
 const http = require("http");
