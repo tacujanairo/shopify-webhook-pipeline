@@ -64,12 +64,29 @@ async function saveWebhookEvent(headers, body) {
     );
 }
 
+/*
 async function upsertCustomer(customer) {
     return db.run(
         `INSERT OR IGNORE INTO customers (shopify_customer_id, email, first_name, last_name)
          VALUES (?, ?, ?, ?)`,
         [customer.shopify_customer_id, customer.email, customer.first_name, customer.last_name]
     );
+}
+*/
+async function upsertCustomer(customer) {
+    const result = await db.run(
+        `INSERT OR IGNORE INTO customers (shopify_customer_id, email, first_name, last_name)
+         VALUES (?, ?, ?, ?)`,
+        [customer.shopify_customer_id, customer.email, customer.first_name, customer.last_name]
+    );
+
+    if (result.changes === 1) {
+        console.log("🟢 UPSERT: inserted new customer");
+    } else {
+        console.log("🟡 UPSERT: already exists, ignored");
+    }
+
+    return result;
 }
 
 async function insertOrder(email, order) {
