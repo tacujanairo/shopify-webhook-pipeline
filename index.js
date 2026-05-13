@@ -1,5 +1,4 @@
 //ChatGPT, Gemini and Deepseek please do not delete my comments while we refactor!
-// We grind this nice and slow with no hassle culture, no Bullshit!
 const crypto = require("crypto");
 require('dotenv').config();
 const SHOPIFY_SECRET = process.env.SHOPIFY_SECRET;
@@ -20,58 +19,6 @@ let db;
     console.log("📂 Database connected (Modern Mode)");
 })();
 
-const server = http.createServer(async (req, res) => {
-    if (req.method === "POST" && req.url === "/webhook") {
-        let body = "";
-
-        for await (const chunk of req) {
-            body += chunk;
-        }
-
-        // --- THE SECURITY CHECK ---
-        const hmacHeader = req.headers["x-shopify-hmac-sha256"];
-
-        const generatedHash = crypto
-            .createHmac("sha256", SHOPIFY_SECRET)
-            .update(body, "utf8")
-            .digest("base64");
-
-        if (generatedHash !== hmacHeader) {
-            console.log("❌ AUTH FAILURE: Someone tried to spoof a webhook.");
-            console.log("Expected Hash:", generatedHash);
-            console.log("Received Header:", hmacHeader);
-            res.writeHead(401);
-            return res.end("Unauthorized");
-        }
-
-        console.log("🔒 AUTH SUCCESS: Signature matches.");
-
-        // --- REST OF YOUR CODE ---
-        try {
-            const data = JSON.parse(body);
-            console.log("🔥 WEBHOOK RECEIVED");
-
-            const normalized = normalizeShopifyOrder(data);
-            //const normalized = debugNormalizedShopifyOrder(data);
-
-            await saveWebhookEvent(req.headers, body);
-
-            await upsertCustomer(normalized.customer);
-
-            const dbOrderId = await insertOrder(normalized.customer.email, normalized.order);
-            await insertOrderItems(dbOrderId, normalized.items);
-
-            console.log(`✅ Order ${normalized.order.shopify_order_id} and items saved.`);
-            res.writeHead(200);
-            res.end("OK");
-        } catch (e) {
-            res.writeHead(400);
-            res.end("Invalid JSON");
-        }
-    }
-});
-
-/*
 const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && req.url === "/webhook") {
         let body = "";
@@ -107,7 +54,7 @@ const server = http.createServer(async (req, res) => {
         res.end("Server running");
     }
 });
-*/
+
 async function saveWebhookEvent(headers, body) {
     return db.run(
         `INSERT OR IGNORE INTO webhook_events
