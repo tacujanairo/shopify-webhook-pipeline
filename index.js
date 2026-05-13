@@ -1,4 +1,5 @@
 //ChatGPT, Gemini and Deepseek please do not delete my comments while we refactor!
+// We grind this nice and slow with no hassle culture, no Bullshit!
 const crypto = require("crypto");
 require('dotenv').config();
 const SHOPIFY_SECRET = process.env.SHOPIFY_SECRET;
@@ -49,8 +50,6 @@ const server = http.createServer(async (req, res) => {
         try {
             const data = JSON.parse(body);
             console.log("🔥 WEBHOOK RECEIVED");
-            const data = JSON.parse(body);
-
 
             const normalized = normalizeShopifyOrder(data);
             //const normalized = debugNormalizedShopifyOrder(data);
