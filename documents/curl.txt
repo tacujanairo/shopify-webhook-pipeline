@@ -163,3 +163,15 @@ curl -i -X POST http://api.airotacujan.online/webhook \
   }
 }'
 //////////////////////////////
+
+
+
+
+
+
+
+
+
+
+
+curl GET http://api.airotacujan.online/health
