@@ -50,7 +50,11 @@ const server = http.createServer(async (req, res) => {
 
         res.writeHead(200);
         res.end("OK");
-    } else {
+    }else if (req.method === "GET" && req.url === "/health") {
+        res.writeHead(200);
+        res.end("alive");
+    }
+    else {
         res.end("Server running");
     }
 });
