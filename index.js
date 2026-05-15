@@ -28,6 +28,24 @@ const server = http.createServer(async (req, res) => {
         }
 
         try {
+          // Get the HMAC from Shopify
+          const hmacHeader = req.headers["x-shopify-hmac-sha256"];
+
+          // Generate your own HMAC from raw body
+          const generatedHash = crypto
+              .createHmac("sha256", SHOPIFY_SECRET)
+              .update(body, "utf8")
+              .digest("base64");
+
+          // Compare
+          if (generatedHash !== hmacHeader) {
+              console.log("❌ AUTH FAILURE");
+              res.writeHead(401);
+              return res.end("Unauthorized");
+          }
+
+          console.log("🔒 AUTH SUCCESS");
+          // THEN parse JSON and continue
             console.log("🔥 WEBHOOK RECEIVED");
             const data = JSON.parse(body);
 
