@@ -44,7 +44,7 @@ const server = http.createServer(async (req, res) => {
               return res.end("Unauthorized");
           }
 
-          console.log("🔒 AUTH SUCCESS");
+            console.log("🔒 AUTH SUCCESS");
           // THEN parse JSON and continue
             console.log("🔥 WEBHOOK RECEIVED");
             const data = JSON.parse(body);
@@ -62,12 +62,14 @@ const server = http.createServer(async (req, res) => {
 
             console.log(`✅ Order ${normalized.order.shopify_order_id} and items saved.`);
 
+            res.writeHead(200);
+            res.end("OK");
         } catch (err) {
             console.error("❌ Error processing webhook:", err.message);
+            res.writeHead(400);
+            res.end("Error");
         }
 
-        res.writeHead(200);
-        res.end("OK");
     }else if (req.method === "GET" && req.url === "/health") {
         res.writeHead(200);
         res.end("Still Alive and Kicking!");
