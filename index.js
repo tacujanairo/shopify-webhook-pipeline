@@ -52,14 +52,45 @@ const server = http.createServer(async (req, res) => {
 
             const normalized = normalizeShopifyOrder(data);
             //const normalized = debugNormalizedShopifyOrder(data);
-
+/*
             await saveWebhookEvent(req.headers, body);
 
             await upsertCustomer(normalized.customer);
 
             const dbOrderId = await insertOrder(normalized.customer.email, normalized.order);
             await insertOrderItems(dbOrderId, normalized.items);
+*/
+// Save raw webhook FIRST (outside transaction is fine)
+            await saveWebhookEvent(req.headers, body);
 
+            // 🔥 START TRANSACTION
+            await db.run("BEGIN TRANSACTION");
+
+            try {
+
+                await upsertCustomer(normalized.customer);
+
+                const dbOrderId = await insertOrder(
+                    normalized.customer.email,
+                    normalized.order
+                );
+
+                await insertOrderItems(dbOrderId, normalized.items);
+
+                // 🔥 SUCCESS
+                await db.run("COMMIT");
+
+                console.log(
+                    `✅ Order ${normalized.order.shopify_order_id} and items saved.`
+                );
+
+            } catch (txErr) {
+
+                // 🔥 FAILURE
+                await db.run("ROLLBACK");
+
+                throw txErr;
+            }
             console.log(`✅ Order ${normalized.order.shopify_order_id} and items saved.`);
 
             res.writeHead(200);
